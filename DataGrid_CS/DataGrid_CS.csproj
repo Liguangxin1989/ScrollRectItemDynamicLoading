@@ -287,10 +287,10 @@
   <ItemGroup>
     <Compile Include="Assets\UI\DataGrid\DataGrid.cs" />
     <Compile Include="Assets\UI\DataGrid\IDataRender.cs" />
+    <Compile Include="Assets\UI\DataGrid\Item.cs" />
+    <Compile Include="Assets\UI\DataGrid\ItemBase.cs" />
     <Compile Include="Assets\UI\DataGrid\ItemRender.cs" />
     <Compile Include="Assets\UI\DataGrid\UGUIClickHandler.cs" />
-    <Compile Include="Assets\UI\DGTest\DGItemList.cs" />
-    <Compile Include="Assets\UI\DGTest\DGItemRender.cs" />
     <Compile Include="Assets\UI\DGTest\DGTest.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
