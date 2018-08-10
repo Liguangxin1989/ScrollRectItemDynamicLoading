@@ -14,17 +14,9 @@ namespace MogoEngine.UISystem
     {
         [HideInInspector]
         public bool useLoopItems = false;           //是否使用无限循环列表，对于列表项中OnDataSet方法执行消耗较大时不宜使用，因为OnDataSet方法会在滚动的时候频繁调用
-        [HideInInspector]
-        public bool useClickEvent = true;           //列表项是否监听点击事件
-        [HideInInspector]
-        public bool autoSelectFirst = true;         //创建时是否自动选中第一个对象
 
-        public delegate void OnDataGridItemSelect(object renderData);
-        public OnDataGridItemSelect onItemSelected;       //Item点击时的回调函数
 
         private RectTransform m_content;
-        //private Vector2 m_lastContentPos;
-        private ToggleGroup m_toggleGroup;
         private object[] m_data;
         private GameObject m_goItemRender;
         private Type m_itemRenderType;
@@ -32,7 +24,6 @@ namespace MogoEngine.UISystem
         private object m_selectedData;
         private LayoutGroup m_LayoutGroup;
         private RectOffset m_oldPadding;
-        //private Canvas m_canvas;
 
         //下面的属性会需要父对象上有ScrollRect组件
         private ScrollRect m_scrollRect;    //父对象上的，不一定存在
@@ -44,18 +35,6 @@ namespace MogoEngine.UISystem
         private string m_itemClickSound = "";//AudioConst.btnClick;
 
         Vector2 Resolution = new Vector2(1242, 2208);
-
-        public float verticalPos
-        {
-            get { return m_scrollRect.verticalNormalizedPosition; }
-            set { m_scrollRect.verticalNormalizedPosition = value; }
-        }
-
-        public float horizonPos
-        {
-            get { return m_scrollRect.horizontalNormalizedPosition; }
-            set { m_scrollRect.horizontalNormalizedPosition = value; }
-        }
 
         //内容长度
         private float ContentSpace
@@ -120,11 +99,7 @@ namespace MogoEngine.UISystem
         {
             var go = gameObject;
             var trans = transform;
-            //go.AddMissingComponent<CanvasRenderer>();
-            go.AddComponent<CanvasRenderer>();
-            m_toggleGroup = GetComponent<ToggleGroup>();
             m_LayoutGroup = GetComponentInChildren<LayoutGroup>();
-            //m_content = m_LayoutGroup.gameObject.GetRectTransform();
             m_content = m_LayoutGroup.gameObject.GetComponent<RectTransform>();
             if (m_LayoutGroup != null)
                 m_oldPadding = m_LayoutGroup.padding;
@@ -132,11 +107,6 @@ namespace MogoEngine.UISystem
             m_scrollRect = trans.GetComponentInParent<ScrollRect>();
             if (m_scrollRect != null && m_LayoutGroup != null)
             {
-//                 if (m_scrollRect.gameObject.layer != GameSetting.LAYER_VALUE_UI)
-//                     m_scrollRect.gameObject.ApplyLayer(GameSetting.LAYER_VALUE_UI);
-                m_scrollRect.gameObject.layer = LayerMask.NameToLayer("UI");
-
-                m_scrollRect.decelerationRate = 0.2f;
                 m_tranScrollRect = m_scrollRect.GetComponent<RectTransform>();
                 m_isVertical = m_scrollRect.vertical;
                 var layoutgroup = m_LayoutGroup as GridLayoutGroup;
@@ -145,19 +115,10 @@ namespace MogoEngine.UISystem
                     m_itemSpace = (int)(m_isVertical ? (layoutgroup.cellSize.y + layoutgroup.spacing.y) : (layoutgroup.cellSize.x + layoutgroup.spacing.x));
                     m_viewItemCount = Mathf.CeilToInt(ViewSpace / m_itemSpace);
                 }
-                //LoggerHelper.Error("view: "+ViewSpace+", item: "+m_itemSpace);
             }
             else
             {
                 Debug.LogError("scrollRect is null or verticalLayoutGroup is null");
-                //if (gameObject.layer != GameSetting.LAYER_VALUE_UI)
-                //    gameObject.ApplyLayer(GameSetting.LAYER_VALUE_UI);
-                //            m_canvas = gameObject.AddMissingComponent<Canvas>();
-                //            m_canvas.overridePixelPerfect = true;
-                //            m_canvas.pixelPerfect = true;
-                //单独一个Canvas，在滚动的时候不开启像素对齐
-                //            gameObject.AddMissingComponent<SortingOrderRenderer>();
-                //            SortingOrderRenderer.RebuildAll();
             }
         }
 
@@ -167,8 +128,6 @@ namespace MogoEngine.UISystem
             {
                 if (useLoopItems)
                     m_scrollRect.onValueChanged.AddListener(OnScroll);
-                if (m_toggleGroup != null)
-                    m_toggleGroup.allowSwitchOff = useLoopItems;
             }
         }
 
@@ -194,15 +153,6 @@ namespace MogoEngine.UISystem
                 m_viewItemCount = Mathf.CeilToInt(ViewSpace / m_itemSpace);
             }
         }
-
-        public void SetItemClickSound(string sound)
-        {
-            //m_itemClickSound = sound;
-        }
-
-        //有效数据数目(可见、没有设置ignorelayout=true),非及时，需要延时一帧使用
-        //public int ValidCount { get { return m_LayoutGroup.ChildrenCount; } }
-
         /// <summary>
         /// 数据项
         /// </summary>
@@ -212,15 +162,6 @@ namespace MogoEngine.UISystem
             {
                 m_data = value;
                 UpdateView();
-
-                if (autoSelectFirst && m_data.Length > 0)
-                {
-                    if (m_data[0] != m_selectedData)
-                        SelectItem(m_data[0]);
-                    SetToggle(0, true);
-                }
-                else if (m_data.Length == 0)
-                    SelectItem(null);
             }
             get { return m_data; }
         }
@@ -333,21 +274,6 @@ namespace MogoEngine.UISystem
             UpdateView();
         }
 
-        //    private void Update()
-        //    {
-        //        //只在可滚动的情况下执行
-        //        if (m_canvas != null)
-        //        {
-        //            if (m_content.anchoredPosition == m_lastContentPos)
-        //            {
-        //                if (!m_canvas.pixelPerfect)
-        //                    m_canvas.pixelPerfect = true;
-        //            }
-        //            else
-        //                m_lastContentPos = m_content.anchoredPosition;
-        //        }
-        //    }
-
         /// <summary>
         /// 更新视图
         /// </summary>
@@ -393,13 +319,11 @@ namespace MogoEngine.UISystem
                 {
                     m_items[i].SetData(m_data[index]);
 
-                    if (useClickEvent || autoSelectFirst)
-                        SetToggle(i, m_selectedData == m_data[index]);
                 }
                 else
                 {
                     var go = Instantiate(m_goItemRender) as GameObject;
-                    go.name = m_goItemRender.name;
+                    go.name = m_goItemRender.name +"_"+index;
                     go.transform.SetParent(m_content, false);
                     go.SetActive(true);
                     var script = go.AddComponent(m_itemRenderType) as ItemRender;
@@ -407,20 +331,6 @@ namespace MogoEngine.UISystem
                         script.Awake();
                     script.SetData(m_data[index]);
                     script.m_owner = this;
-                    if (useClickEvent)
-                        UGUIClickHandler.Get(go, m_itemClickSound).onPointerClick += OnItemClick;
-                    if (m_toggleGroup != null)
-                    {
-                        var toggle = go.GetComponent<Toggle>();
-                        if (toggle != null)
-                        {
-                            toggle.group = m_toggleGroup;
-
-                            //使用循环模式的话不能用渐变效果，否则视觉上会出现破绽
-                            if (useLoopItems)
-                                toggle.toggleTransition = Toggle.ToggleTransition.None;
-                        }
-                    }
                     m_items.Add(script);
                 }
             }
@@ -442,102 +352,10 @@ namespace MogoEngine.UISystem
             }
         }
 
-        private void SelectItem(object renderData)
-        {
-            m_selectedData = renderData;
-            if (onItemSelected != null)
-                onItemSelected(m_selectedData);
-        }
-
-        private void OnItemClick(GameObject target, BaseEventData baseEventData)
-        {
-            var renderData = target.GetComponent<ItemRender>().m_renderData;
-            if (useLoopItems && renderData == m_selectedData)
-            {
-                var toggle = target.GetComponent<Toggle>();
-                if (toggle)
-                    toggle.isOn = true;
-            }
-            SelectItem(renderData);
-        }
-
-        private void SetToggle(int index, bool value)
-        {
-            if (index < m_items.Count)
-            {
-                var toggle = m_items[index].GetComponent<Toggle>();
-                if (toggle)
-                    toggle.isOn = value;
-            }
-        }
-
         void Destroy()
         {
-            onItemSelected = null;
             m_items.Clear();
         }
 
-        /// <summary>
-        /// 选择指定项
-        /// </summary>
-        /// <param name="index"></param>
-        public void Select(int index)
-        {
-            if (index >= m_data.Length)
-                return;
-
-            if (m_data[index] != m_selectedData)
-                SelectItem(m_data[index]);
-
-            UpdateView();
-        }
-
-        /// <summary>
-        /// 开启或关闭某一项的响应
-        /// </summary>
-        /// <param name="index"></param>
-        public void Enable(int index, bool isEnable = true)
-        {
-            if (index < m_items.Count)
-            {
-                var toggle = m_items[index].GetComponent<Toggle>();
-                if (toggle)
-                {
-                    toggle.isOn = isEnable;
-                    toggle.enabled = isEnable;
-                    if (isEnable)
-                    {
-                        UGUIClickHandler.Get(toggle.gameObject, m_itemClickSound).onPointerClick += OnItemClick;
-                    }
-                    else
-                    {
-                        UGUIClickHandler.Get(toggle.gameObject, m_itemClickSound).RemoveAllHandler();
-                    }
-                }
-            }
-        }
-
-        /// <summary>
-        /// 选择指定项
-        /// </summary>
-        /// <param name="renderData"></param>
-        public void Select(object renderData)
-        {
-            if (renderData == null)
-            {
-                SelectItem(null);
-                UpdateView();
-                return;
-            }
-            for (int i = 0; i < m_data.Length; i++)
-            {
-                if (m_data[i] == renderData)
-                {
-                    SelectItem(m_data[i]);
-                    UpdateView();
-                    break;
-                }
-            }
-        }
     }
 }
