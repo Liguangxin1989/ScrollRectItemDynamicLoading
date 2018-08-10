@@ -39,7 +39,7 @@ namespace MogoEngine.UISystem
         {
             get
             {
-                return m_isVertical ? m_content.sizeDelta.y : m_content.sizeDelta.x;
+                return m_isVertical ? m_content.rect.height : m_content.rect.width;
             }
         }
         //可见区域长度
@@ -47,7 +47,7 @@ namespace MogoEngine.UISystem
         {
             get
             {
-                return m_isVertical ? m_tranScrollRect.sizeDelta.y : m_tranScrollRect.sizeDelta.x ;
+                return m_isVertical ? m_tranScrollRect.rect.height : m_tranScrollRect.rect.width;
             }
         }
         /// <summary>
@@ -85,7 +85,7 @@ namespace MogoEngine.UISystem
             var go = gameObject;
             m_scrollRect = this.GetComponent<ScrollRect>();
             m_content = m_scrollRect.content;
-            m_tranScrollRect = m_scrollRect.viewport;
+            m_tranScrollRect = m_scrollRect.viewport == null ? this.transform as RectTransform : m_scrollRect.viewport;
             m_isVertical = m_scrollRect.vertical;
             m_scrollRect.onValueChanged.AddListener(OnScroll);
             isStart = true;
@@ -131,7 +131,10 @@ namespace MogoEngine.UISystem
         void SetItemSize()
         {
             if (_item)
-                _itemSize = (_item.transform as RectTransform).sizeDelta;
+            {
+                var rectTrans = (_item.transform as RectTransform);
+                _itemSize = rectTrans.sizeDelta;
+            }
             ///TODO 如果有Gridlayout 应该把 Space 加进去
 
         }
@@ -158,7 +161,7 @@ namespace MogoEngine.UISystem
             if(ViewSpace >0 && itemSpace >0)
             {
                 m_viewItemCount = Mathf.CeilToInt(ViewSpace / itemSpace);
-                _cacheCount = (int)(ViewSpace / itemSpace)  + CACHENUM;
+                _cacheCount = m_viewItemCount + CACHENUM;
             }
         }
  
@@ -237,10 +240,6 @@ namespace MogoEngine.UISystem
             ///前面的空间 （ viewspace  以后的空间）
             var behindSpace = Mathf.Max(0, itemSpace *( ( _dataCount -1) -m_startIndex  - m_viewItemCount) );
             ///TODO 如果有 layoutGroup 情况处理
-            //if (m_isVertical)
-            //    m_LayoutGroup.padding = new RectOffset(m_oldPadding.left, m_oldPadding.right, frontSpace, behindSpace);
-            //else
-            //    m_LayoutGroup.padding = new RectOffset(frontSpace, behindSpace, m_oldPadding.top, m_oldPadding.bottom);
 
 
             for (int i = 0; i < _cacheCount; i++)

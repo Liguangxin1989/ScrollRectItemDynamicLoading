@@ -10,7 +10,7 @@ public class Item : ItemBase
 
     public override void SetData(string data)
     {
-        if (string.IsNullOrEmpty(data))
+        if (!string.IsNullOrEmpty(data))
             text.text = data;
     }
 

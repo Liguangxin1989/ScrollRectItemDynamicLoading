@@ -20,7 +20,7 @@ public class DGTest : MonoBehaviour {
     {
         var  trans = GameObject.Find("ScrollPanel").GetComponent<RectTransform>();
 
-        for (int i = 0; i < 100; i++)
+        for (int i = 0; i < 10000; i++)
         {
             itemData.Add(i);
         }
