@@ -10,7 +10,8 @@ namespace MogoEngine.UISystem
     /// <summary>
     /// 数据列表渲染组件，Item缓存，支持无限循环列表，即用少量的Item实现大量的列表项显示
     /// </summary>
-    public class DataGrid : MonoBehaviour
+    [RequireComponent(typeof(ScrollRect))]
+    public class DataGrid<T> : MonoBehaviour where T:MonoBehaviour
     {
         [HideInInspector]
         public bool useLoopItems = false;           //是否使用无限循环列表，对于列表项中OnDataSet方法执行消耗较大时不宜使用，因为OnDataSet方法会在滚动的时候频繁调用
@@ -28,13 +29,11 @@ namespace MogoEngine.UISystem
         //下面的属性会需要父对象上有ScrollRect组件
         private ScrollRect m_scrollRect;    //父对象上的，不一定存在
         private RectTransform m_tranScrollRect;
-        private int m_itemSpace;          //每个Item的空间
+      
         private int m_viewItemCount;        //可视区域内Item的数量（向上取整）
         private bool m_isVertical;          //是否是垂直滚动方式，否则是水平滚动
         private int m_startIndex;           //数据数组渲染的起始下标
-        private string m_itemClickSound = "";//AudioConst.btnClick;
 
-        Vector2 Resolution = new Vector2(1242, 2208);
 
         //内容长度
         private float ContentSpace
@@ -49,7 +48,7 @@ namespace MogoEngine.UISystem
         {
             get
             {
-                return m_isVertical ? (m_tranScrollRect.sizeDelta.y + Resolution.y) : (m_tranScrollRect.sizeDelta.x + Resolution.x);
+                return m_isVertical ? m_tranScrollRect.sizeDelta.y : m_tranScrollRect.sizeDelta.x ;
             }
         }
         //约束常量（固定的行（列）数）
@@ -61,19 +60,17 @@ namespace MogoEngine.UISystem
             }
         }
         //数据量个数
-        private int DataCount
-        {
-            get
-            {
-                return m_data == null ? 0 : m_data.Length;
-            }
-        }
+        private int _dataCount;
+        /// <summary>
+        /// item prefab
+        /// </summary>
+        private GameObject _item;
         //缓存数量
         private int CacheCount
         {
             get
             {
-                return ConstraintCount + DataCount % ConstraintCount;
+                return ConstraintCount + _dataCount % ConstraintCount;
             }
         }
         //缓存单元的行（列）数
@@ -89,70 +86,91 @@ namespace MogoEngine.UISystem
         {
             get
             {
-                return m_LayoutGroup == null ? DataCount : Mathf.CeilToInt((float)DataCount / ConstraintCount);
+                return m_LayoutGroup == null ? _dataCount : Mathf.CeilToInt((float)_dataCount / ConstraintCount);
             }
         }
-
-
-
-        void Awake()
+        /// <summary>
+        /// item的size 如果有Gridlayout 应该把 Space 加进去
+        /// </summary>
+        Vector2 _itemSize = Vector2.zero;
+        //每个Item的空间
+        private float itemSpace
         {
-            var go = gameObject;
-            var trans = transform;
-            m_LayoutGroup = GetComponentInChildren<LayoutGroup>();
-            m_content = m_LayoutGroup.gameObject.GetComponent<RectTransform>();
-            if (m_LayoutGroup != null)
-                m_oldPadding = m_LayoutGroup.padding;
+             get { return  m_isVertical ? _itemSize.y : _itemSize.x; }
+        } 
 
-            m_scrollRect = trans.GetComponentInParent<ScrollRect>();
-            if (m_scrollRect != null && m_LayoutGroup != null)
-            {
-                m_tranScrollRect = m_scrollRect.GetComponent<RectTransform>();
-                m_isVertical = m_scrollRect.vertical;
-                var layoutgroup = m_LayoutGroup as GridLayoutGroup;
-                if (layoutgroup != null)
-                {
-                    m_itemSpace = (int)(m_isVertical ? (layoutgroup.cellSize.y + layoutgroup.spacing.y) : (layoutgroup.cellSize.x + layoutgroup.spacing.x));
-                    m_viewItemCount = Mathf.CeilToInt(ViewSpace / m_itemSpace);
-                }
-            }
-            else
-            {
-                Debug.LogError("scrollRect is null or verticalLayoutGroup is null");
-            }
-        }
+        private bool _isEnable = false;
+
+        public delegate void InitItemCallback(T t, int index);
+
+        InitItemCallback _callback;
 
         void Start()
         {
-            if (m_scrollRect != null)
-            {
-                if (useLoopItems)
-                    m_scrollRect.onValueChanged.AddListener(OnScroll);
-            }
+            var go = gameObject;
+            m_scrollRect = this.GetComponent<ScrollRect>();
+            m_content = m_scrollRect.content;
+            m_tranScrollRect = m_scrollRect.viewport;
+            m_isVertical = m_scrollRect.vertical;
+            m_scrollRect.onValueChanged.AddListener(OnScroll);
+            InitData();
         }
 
         /// <summary>
-        /// 设置渲染项
+        /// 设置Item 相关的数据
         /// </summary>
-        /// <param name="goItemRender"></param>
-        /// <param name="itemRenderType"></param>
-        public void SetItemRender(GameObject goItemRender, Type itemRenderType)
+        /// <typeparam name="T"> item身上的脚本 类型</typeparam>
+        /// <param name="item"> item 的 prefab </param>
+        /// <param name="baseItem"> item身上的脚本 类型 </param>
+        /// <param name="count">item 的数目</param>
+        public void SetItemsData(GameObject item, T baseItem, int count, InitItemCallback callback)
         {
-            m_goItemRender = goItemRender;
-            m_itemRenderType = itemRenderType.IsSubclassOf(typeof(ItemRender)) ? itemRenderType : null;
-            LayoutElement le = goItemRender.GetComponent<LayoutElement>();
-            var layoutGroup = m_LayoutGroup as HorizontalOrVerticalLayoutGroup;
-            if (le != null && layoutGroup != null)
+            _isEnable = item != null && item.GetComponent<T>() && _callback != null;
+            if (_isEnable)
             {
-                if (m_tranScrollRect == null)
-                {
-                    m_scrollRect = transform.GetComponentInParent<ScrollRect>();
-                    m_tranScrollRect = m_scrollRect.GetComponent<RectTransform>();
-                }
-                m_itemSpace = (int)(le.preferredHeight + (int)layoutGroup.spacing);
-                m_viewItemCount = Mathf.CeilToInt(ViewSpace / m_itemSpace);
+                _dataCount = count;
+                _item = item;
+                _callback = callback;
+                InitData();
+            }
+            else
+            {
+                Debug.LogError(" 参数不对!!");
             }
         }
+
+        void InitData()
+        {
+            SetItemSize();
+            SetContentSize();
+        } 
+
+        /// <summary>
+        /// 计算Item的大小
+        /// </summary>
+        void SetItemSize()
+        {
+            if (_item)
+                _itemSize = (_item.transform as RectTransform).sizeDelta;
+            ///TODO 如果有Gridlayout 应该把 Space 加进去
+
+        }
+        /// <summary>
+        /// 计算Content的大小 
+        /// content 的 不动边是由本身决定还是由 viewport 决定 ？  暂时由本身决定
+        /// </summary>
+        void SetContentSize()
+        {
+            if (m_content && itemSpace > 0)
+            {
+                float contentfit = itemSpace * _dataCount;
+                if (m_isVertical)
+                    m_content.sizeDelta = new Vector2(m_content.sizeDelta.x, contentfit);
+                else
+                    m_content.sizeDelta = new Vector2(contentfit, m_content.sizeDelta.y);
+            }
+        }
+
         /// <summary>
         /// 数据项
         /// </summary>
@@ -255,7 +273,7 @@ namespace MogoEngine.UISystem
             if (m_data == null)
                 return;
             var unitIndex = Mathf.Clamp(index / ConstraintCount, 0, DataUnitCount - m_viewItemCount > 0 ? DataUnitCount - m_viewItemCount : 0);
-            var value = (unitIndex * m_itemSpace) / (Mathf.Max(ViewSpace, ContentSpace - ViewSpace));
+            var value = (unitIndex * itemSpace) / (Mathf.Max(ViewSpace, ContentSpace - ViewSpace));
             value = Mathf.Clamp01(value);
 
             //特殊处理无法使指定条目置顶的情况——拉到最后
@@ -283,8 +301,8 @@ namespace MogoEngine.UISystem
             {
                 if (m_data != null)
                     m_startIndex = Mathf.Max(0, Mathf.Min(m_startIndex / ConstraintCount, DataUnitCount - m_viewItemCount - CacheUnitCount)) * ConstraintCount;
-                var frontSpace = m_startIndex / ConstraintCount * m_itemSpace;
-                var behindSpace = Mathf.Max(0, m_itemSpace * (DataUnitCount - CacheUnitCount) - frontSpace - (m_itemSpace * m_viewItemCount));
+                var frontSpace = m_startIndex / ConstraintCount * itemSpace;
+                var behindSpace = Mathf.Max(0, itemSpace * (DataUnitCount - CacheUnitCount) - frontSpace - (itemSpace * m_viewItemCount));
                 if (m_isVertical)
                     m_LayoutGroup.padding = new RectOffset(m_oldPadding.left, m_oldPadding.right, frontSpace, behindSpace);
                 else
@@ -342,7 +360,7 @@ namespace MogoEngine.UISystem
             //    m_canvas.pixelPerfect = false;
             var value = (ContentSpace - ViewSpace) * (m_isVertical ? data.y : 1 - data.x);
             var start = ContentSpace - value - ViewSpace;
-            var startIndex = Mathf.FloorToInt(start / m_itemSpace) * ConstraintCount;
+            var startIndex = Mathf.FloorToInt(start / itemSpace) * ConstraintCount;
             startIndex = Mathf.Max(0, startIndex);
 
             if (startIndex != m_startIndex)
