@@ -1,4 +1,13 @@
-﻿//using MogoEngine.Utils;
+﻿///
+/// version 1 兼容之前版本，去掉多余的layout 选中，toggle 等 ，可以抽出分装一个组件 2018.0810
+///
+///version 2 继续优化 ，每次变化 只更新变化的item 
+///
+///version 3 增加 item 的增 删 改
+/// 
+///version 4 增加瞬移 （移动到底部，顶部，指定位置)
+///
+///
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -239,8 +248,6 @@ namespace MogoEngine.UISystem
             var frontSpace = m_startIndex  * itemSpace;
             ///前面的空间 （ viewspace  以后的空间）
             var behindSpace = Mathf.Max(0, itemSpace *( ( _dataCount -1) -m_startIndex  - m_viewItemCount) );
-            ///TODO 如果有 layoutGroup 情况处理
-
 
             for (int i = 0; i < _cacheCount; i++)
             {
