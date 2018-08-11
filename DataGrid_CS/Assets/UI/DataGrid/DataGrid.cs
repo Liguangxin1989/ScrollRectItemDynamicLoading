@@ -245,21 +245,25 @@ namespace MogoEngine.UISystem
             ///限制其范围
             m_startIndex = Mathf.Max(0, Mathf.Min(m_startIndex ,_dataCount-1)) ;
             ///前面的空间 （ m_startIndex 以前的空间）
-            var frontSpace = m_startIndex  * itemSpace;
-            ///前面的空间 （ viewspace  以后的空间）
-            var behindSpace = Mathf.Max(0, itemSpace *( ( _dataCount -1) -m_startIndex  - m_viewItemCount) );
+//            var frontSpace = m_startIndex  * itemSpace;
+//            ///前面的空间 （ viewspace  以后的空间）
+//            var behindSpace = Mathf.Max(0, itemSpace *( ( _dataCount -1) -m_startIndex  - m_viewItemCount) );
 
             for (int i = 0; i < _cacheCount; i++)
             {
                 var index = m_startIndex + i;
-                if (index > _dataCount || index < 0)
+                if (index > _dataCount-1 || index < 0)
+                {
+                    m_items[i].gameObject.SetActive(false);
                     continue;
+                }
                 if (i < m_items.Count)
                 {
                     if (_callback != null)
                         _callback(m_items[i], index);
 
                     m_items[i].transform.localPosition = GetItemPos(index, m_items[i].transform.localPosition);
+                    m_items[i].gameObject.SetActive(true);
                 }
                 else
                 {
