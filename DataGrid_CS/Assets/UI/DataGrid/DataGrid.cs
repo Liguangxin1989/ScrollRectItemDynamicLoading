@@ -243,21 +243,30 @@ namespace MogoEngine.UISystem
                 return;
 
             ///限制其范围
-            m_startIndex = Mathf.Max(0, Mathf.Min(m_startIndex ,_dataCount-1)) ;
-            ///前面的空间 （ m_startIndex 以前的空间）
-//            var frontSpace = m_startIndex  * itemSpace;
-//            ///前面的空间 （ viewspace  以后的空间）
-//            var behindSpace = Mathf.Max(0, itemSpace *( ( _dataCount -1) -m_startIndex  - m_viewItemCount) );
+            m_startIndex = Mathf.Max(0, Mathf.Min(m_startIndex, _dataCount - 1));
 
             for (int i = 0; i < _cacheCount; i++)
             {
                 var index = m_startIndex + i;
-                if (index > _dataCount-1 || index < 0)
+                if (index > _dataCount - 1 || index < 0)
                 {
                     m_items[i].gameObject.SetActive(false);
                     continue;
                 }
-                if (i < m_items.Count)
+                if (i > m_items.Count - 1 || m_items[i] == null)
+                {
+                    ItemBase itembase;
+                    var go = InitItem(out itembase);
+                    if (go)
+                    {
+                        go.name = "item" + i;
+                        if (m_items.Count - 1 < i)
+                            m_items.Add(itembase);
+                        else
+                            m_items[i] = itembase;
+                    }
+                }
+                if (m_items[i] != null)
                 {
                     if (_callback != null)
                         _callback(m_items[i], index);
@@ -267,18 +276,7 @@ namespace MogoEngine.UISystem
                 }
                 else
                 {
-                    ItemBase itembase;
-                    var go = InitItem(out itembase);
-                    if (go)
-                    {
-                        go.name = "item";
-                        go.transform.localPosition = GetItemPos(index, go.transform.localPosition);
-                        m_items.Add(itembase);
-
-                        if (_callback != null)
-                            _callback(itembase, index);
-
-                    }
+                    m_items.RemoveAt(i);
                 }
             }
         }
@@ -295,9 +293,11 @@ namespace MogoEngine.UISystem
             }
             return originPos;
         }
-
-       
-
+        /// <summary>
+        /// Inits the item.
+        /// </summary>
+        /// <returns>The item.</returns>
+        /// <param name="itembase">Itembase.</param>
         GameObject InitItem( out ItemBase itembase)
         {
             itembase = null;
