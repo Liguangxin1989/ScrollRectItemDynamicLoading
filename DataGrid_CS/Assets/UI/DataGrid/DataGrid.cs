@@ -142,7 +142,7 @@ namespace MogoEngine.UISystem
             if (_item)
             {
                 var rectTrans = (_item.transform as RectTransform);
-                _itemSize = rectTrans.sizeDelta;
+                _itemSize = rectTrans.rect.size;
             }
             ///TODO 如果有Gridlayout 应该把 Space 加进去
 
@@ -287,7 +287,7 @@ namespace MogoEngine.UISystem
             }
             else
             {
-                originPos.x = index * itemSpace * -1;
+                originPos.x = index * itemSpace ;
             }
             return originPos;
         }

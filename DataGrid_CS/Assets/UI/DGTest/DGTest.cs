@@ -7,7 +7,13 @@ using System;
 
 public class DGTest : MonoBehaviour {
 
-    public GameObject item;
+    public GameObject item1;
+    public GameObject item2;
+
+    public DataGrid dataGrid1;
+    public DataGrid dataGrid2;
+
+
     private DataGrid dataGrid;
     List<int> itemData = new List<int>();
 
@@ -18,15 +24,17 @@ public class DGTest : MonoBehaviour {
 
     private void Init()
     {
-        var  trans = GameObject.Find("ScrollPanel").GetComponent<RectTransform>();
+//        var  trans = GameObject.Find("ScrollPanel").GetComponent<RectTransform>();
 
-        for (int i = 0; i < 10000; i++)
+        for (int i = 0; i < 10; i++)
         {
             itemData.Add(i);
         }
-
-        dataGrid = trans.GetComponent<DataGrid>();
-        dataGrid.SetItemsData(item, itemData.Count, InitItem);
+            
+        if (dataGrid1 && item1)
+            dataGrid1.SetItemsData(item1, itemData.Count, InitItem);
+        if (dataGrid2 && item2)
+            dataGrid2.SetItemsData(item2, itemData.Count, InitItem);
     }
 
     private void InitItem(ItemBase t, int index)
