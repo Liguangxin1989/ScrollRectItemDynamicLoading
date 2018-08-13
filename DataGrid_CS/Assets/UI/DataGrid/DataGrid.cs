@@ -25,11 +25,30 @@ namespace MogoEngine.UISystem
     [RequireComponent(typeof(ScrollRect))]
     public class DataGrid : MonoBehaviour
     {
+        /// <summary>
+        /// 移动方向
+        /// </summary>
+        enum MoveDict :byte
+        {
+            none=0,
+            /// <summary>
+            /// 负方向移动
+            /// </summary>
+            leftorup =1,    
+            /// <summary>
+            /// 正方向移动.
+            /// </summary>
+            righrordown =2, 
+            /// <summary>
+            /// 没有移动 ,需要更新所有的item
+            /// </summary>
+            nomove=3,       
+        }
+
         private RectTransform m_content;
         private readonly List<ItemBase> m_items = new List<ItemBase>();
 
-        //下面的属性会需要父对象上有ScrollRect组件
-        private ScrollRect m_scrollRect;    //父对象上的，不一定存在
+        private ScrollRect m_scrollRect;    
         private RectTransform m_tranScrollRect;
 
         /// <summary>
@@ -39,9 +58,9 @@ namespace MogoEngine.UISystem
         private bool m_isVertical;          //是否是垂直滚动方式，否则是水平滚动
         private int m_startIndex;           //数据数组渲染的起始下标
         /// <summary>
-        /// 多缓存的数目 实际上实例化的数据量是 m_viewItemCount + 3
+        /// 多缓存的数目 实际上实例化的数据量是 m_viewItemCount + CACHENUM
         /// </summary>
-        const int CACHENUM = 3;
+        const int CACHENUM = 0;
 
         //内容长度
         private float ContentSpace
@@ -83,6 +102,8 @@ namespace MogoEngine.UISystem
         } 
 
         private bool _isEnable = false;
+
+        private MoveDict _moveDict = MoveDict.none;
 
         public delegate void InitItemCallback(ItemBase t, int index);
 
@@ -220,31 +241,57 @@ namespace MogoEngine.UISystem
             UpdateView();
         }
 
+        /// <summary>
+        /// 移动的差值（变动的item的数目，就移动这两个数目即可
+        /// </summary>
+        private int diffValue;
+
         private void OnScroll(Vector2 data)
         {
-            var value = (ContentSpace - ViewSpace) * (m_isVertical ? data.y : 1 - data.x);
+            var tmp = (m_isVertical ? data.y : 1 - data.x) ;
+            if (tmp < 0 || tmp > 1)
+                return; 
+            var value = (ContentSpace - ViewSpace) * tmp;
             var start = ContentSpace - value - ViewSpace;
             var startIndex = Mathf.FloorToInt(start / itemSpace);
             startIndex = Mathf.Max(0, startIndex);
 
-            if (startIndex != m_startIndex)
+            if (startIndex != m_startIndex) 
             {
+                ///根据m_startIndex 与 startIndex 大小，判断玩家滑动的方向
+                _moveDict = m_startIndex - startIndex < 0 ? MoveDict.righrordown : MoveDict.leftorup;
+                diffValue = Mathf.Abs(m_startIndex - startIndex);
                 m_startIndex = startIndex;
                 UpdateView();
+
+                _moveDict = MoveDict.none;
+                diffValue = 0;
             }
         }
 
         /// <summary>
         /// 更新视图
         /// </summary>
-        public void UpdateView()
+        public void UpdateView()  
         {
             if (!_isEnable)
                 return;
 
             ///限制其范围
             m_startIndex = Mathf.Max(0, Mathf.Min(m_startIndex, _dataCount - 1));
+            if (_moveDict == MoveDict.none || _moveDict == MoveDict.nomove)
+                UpdateAllItems();
+            else
+            {
+                UpdateChangeItems();
+            }
 
+        }
+        /// <summary>
+        /// Updates all items.
+        /// </summary>
+        void UpdateAllItems()
+        {
             for (int i = 0; i < _cacheCount; i++)
             {
                 var index = m_startIndex + i;
@@ -268,17 +315,58 @@ namespace MogoEngine.UISystem
                 }
                 if (m_items[i] != null)
                 {
-                    if (_callback != null)
-                        _callback(m_items[i], index);
-
-                    m_items[i].transform.localPosition = GetItemPos(index, m_items[i].transform.localPosition);
-                    m_items[i].gameObject.SetActive(true);
+                    UpdateItem(m_items[i], index);
                 }
                 else
                 {
                     m_items.RemoveAt(i);
                 }
             }
+        }
+
+        /// <summary>
+        /// Updates the change items.
+        /// </summary>
+        void UpdateChangeItems()
+        {
+            if (_cacheCount != m_items.Count)
+            {
+                UpdateAllItems();
+            }
+            else
+            {
+                if (_moveDict == MoveDict.righrordown)
+                {
+                    int index = 0;
+                    for (int i = 0; i < diffValue; i++)
+                    {
+                        var item = m_items[i];
+                        m_items.RemoveAt(i);
+                        m_items.Add(item);
+                        UpdateItem(item, m_startIndex + _cacheCount - diffValue + index++);
+                    }
+                }
+                else if (_moveDict == MoveDict.leftorup)
+                {
+                    int index = 0;
+                    for (int i = m_items.Count-1; i > m_items.Count - diffValue-1; i--)
+                    {
+                        var item = m_items[i];
+                        m_items.RemoveAt(i);
+                        m_items.Insert(0, item);
+                        UpdateItem(item, m_startIndex + index++);
+                    }
+                }
+            }
+        }
+
+        void UpdateItem(ItemBase item , int index )
+        {
+            Debug.LogErrorFormat(" item name = {0} , index = {1} , moveDict = {2} , startindex = {3} ,diffvalue = {4}" , item.gameObject.name , index ,_moveDict,m_startIndex ,diffValue);
+            item.transform.localPosition = GetItemPos(index, item.transform.localPosition);
+            item.gameObject.SetActive(true);
+            if (_callback != null)
+                _callback(item, index);
         }
 
         Vector3 GetItemPos( int index , Vector3 originPos )
@@ -312,4 +400,110 @@ namespace MogoEngine.UISystem
         }
 
     }
+        #region 链表
+
+    class LinkedListItem 
+    {
+        public LinkedListItem pro;
+        public int index;
+        public ItemBase itembase;
+        public LinkedListItem next;
+    }
+
+    class ItemlinkList 
+    {
+        public LinkedListItem head;
+        public LinkedListItem tail;
+        public int count ;
+
+        HashSet<LinkedListItem> items = new HashSet<LinkedListItem>();
+
+        public void AddItemToTail(LinkedListItem item)
+        {
+            if (items.Contains(item))
+            {
+                Debug.LogError("items contains the item");
+                return;
+            }
+            if (head == null)
+            {
+                head = tail = item;
+                item.pro = item.next = null;
+            }
+            else
+            {
+                tail.next = item;
+                item.pro = tail;
+                tail = item;
+
+            }
+            items.Add(item);
+            count++;
+        }
+
+        public void AddItemToHead(LinkedListItem item)
+        {
+            if (items.Contains(item))
+            {
+                Debug.LogError("items contains the item");
+                return;
+            }
+            if (head == null)
+            {
+                head = tail = item;
+                item.next = item.pro = null;
+            }
+            else
+            {
+                head.pro = item;
+                item.next = head;
+                head = item;
+
+            }
+            items.Add(item);
+            count++;
+        }
+
+
+        public void RemoveItem(LinkedListItem item)
+        {
+            if (!items.Contains(item))
+            {
+                Debug.LogError("items dont contains the item!");
+                return;
+            }
+
+            if (item == head)
+            {
+                if (item.next == null)
+                    head = tail = null;
+                else
+                {
+                    head = item.next;
+                    head.pro = null;
+                }
+            }
+            else if (item == tail)
+            {
+                if (item.pro == null)
+                    head = tail = null;
+                else
+                {
+                    tail = item.pro;
+                    tail.next = null;
+                }
+            }
+            else
+            {
+                item.pro.next = item.next.pro;
+                item.next.pro = item.pro.next;
+            }
+            count--;
+            items.Remove(item);
+        }
+
+    }
+
+    #endregion
+
 }

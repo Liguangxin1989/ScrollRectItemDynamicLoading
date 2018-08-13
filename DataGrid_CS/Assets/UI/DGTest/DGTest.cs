@@ -33,8 +33,8 @@ public class DGTest : MonoBehaviour {
             
         if (dataGrid1 && item1)
             dataGrid1.SetItemsData(item1, itemData.Count, InitItem);
-        if (dataGrid2 && item2)
-            dataGrid2.SetItemsData(item2, itemData.Count, InitItem);
+//        if (dataGrid2 && item2)
+//            dataGrid2.SetItemsData(item2, itemData.Count, InitItem);
     }
 
     private void InitItem(ItemBase t, int index)
