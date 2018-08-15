@@ -28,60 +28,67 @@ namespace MogoEngine.UISystem
         /// <summary>
         /// 移动方向
         /// </summary>
-        enum MoveDict :byte
+        enum MoveDict : byte
         {
-            none=0,
+            none = 0,
             /// <summary>
             /// 负方向移动
             /// </summary>
-            leftorup =1,    
+            leftorup = 1,
             /// <summary>
             /// 正方向移动.
             /// </summary>
-            righrordown =2, 
+            righrordown = 2,
             /// <summary>
             /// 没有移动 ,需要更新所有的item
             /// </summary>
-            nomove=3,       
+            nomove = 3,
+        }
+
+        class IndexItem
+        {
+            public ItemBase item;
+            public int index;
+            public IndexItem(ItemBase item, int index)
+            {
+                this.item = item;
+                this.index = index;
+            }
         }
 
         private RectTransform m_content;
-        private readonly List<ItemBase> m_items = new List<ItemBase>();
+        private readonly List<IndexItem> m_items = new List<IndexItem>();
 
-        private ScrollRect m_scrollRect;    
+        private ScrollRect m_scrollRect;
         private RectTransform m_tranScrollRect;
 
         /// <summary>
         /// 可视区域内Item的数量（向上取整）
         /// </summary>
-        private int m_viewItemCount;        
+        private int m_viewItemCount;
         private bool m_isVertical;          //是否是垂直滚动方式，否则是水平滚动
         private int m_startIndex;           //数据数组渲染的起始下标
         /// <summary>
         /// 多缓存的数目 实际上实例化的数据量是 m_viewItemCount + CACHENUM
         /// </summary>
-        const int CACHENUM = 0;
+        const int CACHENUM = 1;
 
         //内容长度
-        private float ContentSpace
-        {
-            get
-            {
-                return m_isVertical ? m_content.rect.height : m_content.rect.width;
-            }
-        }
+        private float ContentSpace;
+        //{
+        //    get
+        //    {
+        //        return m_isVertical ? m_content.rect.height : m_content.rect.width;
+        //    }
+        //}
         //可见区域长度
-        private float ViewSpace
-        {
-            get
-            {
-                return m_isVertical ? m_tranScrollRect.rect.height : m_tranScrollRect.rect.width;
-            }
-        }
-        /// <summary>
-        /// 缓存的个数
-        /// </summary>
-        int _cacheCount;
+        private float ViewSpace;
+        //{
+        //    get
+        //    {
+        //        return m_isVertical ? m_tranScrollRect.rect.height : m_tranScrollRect.rect.width;
+        //    }
+        //}
         /// <summary>
         /// 数据量个数
         /// </summary>
@@ -95,12 +102,10 @@ namespace MogoEngine.UISystem
         /// item的size 如果有Gridlayout 应该把 Space 加进去
         /// </summary>
         Vector2 _itemSize = Vector2.zero;
-        //每个Item的空间
-        private float itemSpace
-        {
-             get { return  m_isVertical ? _itemSize.y : _itemSize.x; }
-        } 
-
+        /// <summary>
+        /// 每个Item的空间
+        /// </summary>
+        private float itemSpace;
         private bool _isEnable = false;
 
         private MoveDict _moveDict = MoveDict.none;
@@ -117,6 +122,7 @@ namespace MogoEngine.UISystem
             m_content = m_scrollRect.content;
             m_tranScrollRect = m_scrollRect.viewport == null ? this.transform as RectTransform : m_scrollRect.viewport;
             m_isVertical = m_scrollRect.vertical;
+            ViewSpace = m_isVertical ? m_tranScrollRect.rect.height : m_tranScrollRect.rect.width;
             m_scrollRect.onValueChanged.AddListener(OnScroll);
             isStart = true;
             InitData();
@@ -130,18 +136,16 @@ namespace MogoEngine.UISystem
         /// <param name="callback"> item的 回调</param>
         public void SetItemsData(GameObject item, int count, InitItemCallback callback)
         {
-            _isEnable = item != null && item.GetComponent<ItemBase>() && callback != null;
-            if (_isEnable)
-            {
-                _dataCount = count;
-                _item = item;
-                _callback = callback;
-                InitData();
-            }
-            else
-            {
-                Debug.LogError(" 参数不对!!");
-            }
+            _dataCount = count;
+            _item = item;
+            _callback = callback;
+            InitData();
+        }
+
+        void SetEnable()
+        {
+            _isEnable = _item != null && _item.GetComponent<ItemBase>() && _callback != null && _dataCount >0;
+
         }
 
         void InitData()
@@ -152,8 +156,9 @@ namespace MogoEngine.UISystem
             SetContentSize();
             SetCacheCount();
             m_startIndex = 0;
+            SetEnable();
             UpdateView();
-        } 
+        }
 
         /// <summary>
         /// 计算Item的大小
@@ -164,6 +169,7 @@ namespace MogoEngine.UISystem
             {
                 var rectTrans = (_item.transform as RectTransform);
                 _itemSize = rectTrans.rect.size;
+                itemSpace = m_isVertical ? _itemSize.y : _itemSize.x;
             }
             ///TODO 如果有Gridlayout 应该把 Space 加进去
 
@@ -181,6 +187,8 @@ namespace MogoEngine.UISystem
                     m_content.sizeDelta = new Vector2(m_content.sizeDelta.x, contentfit);
                 else
                     m_content.sizeDelta = new Vector2(contentfit, m_content.sizeDelta.y);
+
+                ContentSpace = contentfit;
             }
         }
         /// <summary>
@@ -188,13 +196,13 @@ namespace MogoEngine.UISystem
         /// </summary>
         void SetCacheCount()
         {
-            if(ViewSpace >0 && itemSpace >0)
+            if (ViewSpace > 0 && itemSpace > 0)
             {
                 m_viewItemCount = Mathf.CeilToInt(ViewSpace / itemSpace);
-                _cacheCount = m_viewItemCount + CACHENUM;
+                m_viewItemCount = m_viewItemCount + CACHENUM;
             }
         }
- 
+
         /// <summary>
         /// 下一帧把指定项显示在最顶端并选中，这个比ResetScrollPosition保险，否则有些在UI一初始化完就执行的操作会不生效
         /// </summary>
@@ -211,7 +219,7 @@ namespace MogoEngine.UISystem
         /// <param name="top">true则跳转到顶部，false则跳转到底部</param>
         public void ResetScrollPosition(bool top = true)
         {
-            int index = top ? 0 : _cacheCount - 1;
+            int index = top ? 0 : m_viewItemCount - 1;
             // LoggerHelper.Error("len: "+index);
             ResetScrollPosition(index);
         }
@@ -221,12 +229,12 @@ namespace MogoEngine.UISystem
         /// </summary>
         public void ResetScrollPosition(int index)
         {
-            var unitIndex = Mathf.Clamp(index , 0,_dataCount-1);
+            var unitIndex = Mathf.Clamp(index, 0, _dataCount - 1);
             var value = (unitIndex * itemSpace) / (Mathf.Max(ViewSpace, ContentSpace - ViewSpace));
             value = Mathf.Clamp01(value);
 
             //特殊处理无法使指定条目置顶的情况——拉到最后
-            if (unitIndex != index )
+            if (unitIndex != index)
                 value = 1;
 
             if (m_scrollRect)
@@ -237,42 +245,37 @@ namespace MogoEngine.UISystem
                     m_scrollRect.horizontalNormalizedPosition = value;
             }
 
-            m_startIndex = unitIndex ;
+            m_startIndex = unitIndex;
             UpdateView();
         }
 
-        /// <summary>
-        /// 移动的差值（变动的item的数目，就移动这两个数目即可
-        /// </summary>
-        private int diffValue;
-
         private void OnScroll(Vector2 data)
         {
-            var tmp = (m_isVertical ? data.y : 1 - data.x) ;
-            if (tmp < 0 || tmp > 1)
-                return; 
+            if (!_isEnable)
+                return;
+            var tmp = (m_isVertical ? data.y : 1 - data.x);
+            tmp = Mathf.Clamp01(tmp);
             var value = (ContentSpace - ViewSpace) * tmp;
             var start = ContentSpace - value - ViewSpace;
             var startIndex = Mathf.FloorToInt(start / itemSpace);
+            //Debug.LogErrorFormat(" startindex = {0} , m_startIndex = {1}", startIndex, m_startIndex);
             startIndex = Mathf.Max(0, startIndex);
 
-            if (startIndex != m_startIndex) 
+            if (startIndex != m_startIndex)
             {
                 ///根据m_startIndex 与 startIndex 大小，判断玩家滑动的方向
                 _moveDict = m_startIndex - startIndex < 0 ? MoveDict.righrordown : MoveDict.leftorup;
-                diffValue = Mathf.Abs(m_startIndex - startIndex);
                 m_startIndex = startIndex;
                 UpdateView();
 
                 _moveDict = MoveDict.none;
-                diffValue = 0;
             }
         }
 
         /// <summary>
         /// 更新视图
         /// </summary>
-        public void UpdateView()  
+        public void UpdateView()
         {
             if (!_isEnable)
                 return;
@@ -292,15 +295,15 @@ namespace MogoEngine.UISystem
         /// </summary>
         void UpdateAllItems()
         {
-            for (int i = 0; i < _cacheCount; i++)
+            for (int i = 0; i < m_viewItemCount; i++)
             {
                 var index = m_startIndex + i;
                 if (index > _dataCount - 1 || index < 0)
                 {
-                    m_items[i].gameObject.SetActive(false);
+                    m_items[i].item.gameObject.SetActive(false);
                     continue;
                 }
-                if (i > m_items.Count - 1 || m_items[i] == null)
+                if (i > m_items.Count - 1 || m_items[i] == null || m_items[i].item == null)
                 {
                     ItemBase itembase;
                     var go = InitItem(out itembase);
@@ -308,14 +311,21 @@ namespace MogoEngine.UISystem
                     {
                         go.name = "item" + i;
                         if (m_items.Count - 1 < i)
-                            m_items.Add(itembase);
+                            m_items.Add(new IndexItem(itembase, index));
                         else
-                            m_items[i] = itembase;
+                        {
+                            m_items[i].item = itembase;
+                            m_items[i].index = index;
+                        }
                     }
+                }
+                else
+                {
+                    m_items[i].index = index;
                 }
                 if (m_items[i] != null)
                 {
-                    UpdateItem(m_items[i], index);
+                    UpdateItem(m_items[i]);
                 }
                 else
                 {
@@ -329,7 +339,7 @@ namespace MogoEngine.UISystem
         /// </summary>
         void UpdateChangeItems()
         {
-            if (_cacheCount != m_items.Count)
+            if (m_viewItemCount != m_items.Count)
             {
                 UpdateAllItems();
             }
@@ -337,32 +347,57 @@ namespace MogoEngine.UISystem
             {
                 if (_moveDict == MoveDict.righrordown)
                 {
-                    int index = 0;
-                    for (int i = 0; i < diffValue; i++)
+                    int index = m_startIndex + m_viewItemCount-1; ///最后一个item的index
+                    for (int i = 0; i < m_viewItemCount; i++)
                     {
-                        var item = m_items[i];
-                        m_items.RemoveAt(i);
-                        m_items.Add(item);
-                        UpdateItem(item, m_startIndex + _cacheCount - diffValue + index++);
+                        if (!CheckItemIndex(m_items[i].index))
+                        {
+                            m_items[i].index = index--;
+                            UpdateItem(m_items[i]);
+                        }
+
                     }
                 }
                 else if (_moveDict == MoveDict.leftorup)
                 {
-                    int index = 0;
-                    for (int i = m_items.Count-1; i > m_items.Count - diffValue-1; i--)
+                    int index = m_startIndex ; ///第一个item的index
+                    for (int i = m_items.Count- 1; i >=0; i--)
                     {
-                        var item = m_items[i];
-                        m_items.RemoveAt(i);
-                        m_items.Insert(0, item);
-                        UpdateItem(item, m_startIndex + index++);
+                        if (!CheckItemIndex(m_items[i].index))
+                        {
+                            m_items[i].index = index++;
+                            UpdateItem(m_items[i]);
+                        }
+
                     }
                 }
+                /// 根据index 对list 进行重拍
+                m_items.Sort((x ,y) => {
+                    return x.index == y.index ? 0 : (x.index > y.index ? 1 : -1);
+                } );
             }
+        }
+
+        void UpdateItem(IndexItem item)
+        {
+            if (item == null)
+                return;
+            if (item.item == null)
+            {
+                Debug.LogError("Item is null!");
+                return;
+            }
+            if(!CheckItemIndex(item.index))
+            {
+                Debug.LogError("Item is index is not in view!");
+                return;
+            }
+            UpdateItem(item.item, item.index);
         }
 
         void UpdateItem(ItemBase item , int index )
         {
-            Debug.LogErrorFormat(" item name = {0} , index = {1} , moveDict = {2} , startindex = {3} ,diffvalue = {4}" , item.gameObject.name , index ,_moveDict,m_startIndex ,diffValue);
+            //Debug.LogErrorFormat(" item name = {0} , index = {1} , moveDict = {2} , startindex = {3} ,diffvalue = {4}" , item.gameObject.name , index ,_moveDict,m_startIndex ,diffValue);
             item.transform.localPosition = GetItemPos(index, item.transform.localPosition);
             item.gameObject.SetActive(true);
             if (_callback != null)
@@ -381,6 +416,11 @@ namespace MogoEngine.UISystem
             }
             return originPos;
         }
+        bool CheckItemIndex(int index)
+        {
+            return index >= m_startIndex && index <= m_startIndex + m_viewItemCount-1;
+        }
+
         /// <summary>
         /// Inits the item.
         /// </summary>
@@ -400,7 +440,7 @@ namespace MogoEngine.UISystem
         }
 
     }
-        #region 链表
+    /*    #region 链表
 
     class LinkedListItem 
     {
@@ -505,5 +545,5 @@ namespace MogoEngine.UISystem
     }
 
     #endregion
-
+    */
 }
