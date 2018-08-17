@@ -25,6 +25,7 @@ namespace MogoEngine.UISystem
     [RequireComponent(typeof(ScrollRect))]
     public class DataGrid : MonoBehaviour
     {
+        #region 变量
         /// <summary>
         /// 移动方向
         /// </summary>
@@ -58,7 +59,6 @@ namespace MogoEngine.UISystem
 
         private RectTransform m_content;
         private readonly List<IndexItem> m_items = new List<IndexItem>();
-
         private ScrollRect m_scrollRect;
         private RectTransform m_tranScrollRect;
 
@@ -71,9 +71,13 @@ namespace MogoEngine.UISystem
         /// </summary>
         private bool m_isVertical;
         /// <summary>
-        /// 数据数组渲染的起始下标
+        /// 数据数组渲染的起始下标(就是view 显示的第一个下标)
         /// </summary>
         private int m_startIndex;
+        /// <summary>
+        /// Content 中显示的第一个下标 与 m_startIndex 并不相同
+        /// </summary>
+        private int _contentStartIndex;
         /// <summary>
         /// 多缓存的数目 实际上实例化的数据量是 m_viewItemCount + CACHENUM
         /// 设置越多，缓存的越多，在高速移动的时候就不会因为加载不及时而不显示
@@ -96,7 +100,6 @@ namespace MogoEngine.UISystem
         /// item prefab
         /// </summary>
         private GameObject _item;
-
         /// <summary>
         /// item的size 如果有Gridlayout 应该把 Space 加进去
         /// </summary>
@@ -110,10 +113,10 @@ namespace MogoEngine.UISystem
         private MoveDict _moveDict = MoveDict.none;
 
         public delegate void InitItemCallback(ItemBase t, int index);
-
         InitItemCallback _callback;
-        bool isStart = false;
 
+        bool isStart = false;
+#endregion
         void Start()
         {
             var go = gameObject;
@@ -132,11 +135,13 @@ namespace MogoEngine.UISystem
         /// <param name="item"> item 的 prefab </param>
         /// <param name="count">item 的数目</param>
         /// <param name="callback"> item的 回调</param>
-        public void SetItemsData(GameObject item, int count, InitItemCallback callback)
+        /// <param name="initIndex"> 初始时候的位置</param>
+        public void SetItemsData(GameObject item, int count, InitItemCallback callback, int initIndex = 0)
         {
             _dataCount = count;
             _item = item;
             _callback = callback;
+            m_startIndex = initIndex;
             InitData();
         }
 
@@ -152,9 +157,15 @@ namespace MogoEngine.UISystem
             SetItemSize();
             SetContentSize();
             SetCacheCount();
-            m_startIndex = 0;
             SetEnable();
-            UpdateView();
+            if (m_startIndex != 0)
+            {
+                ShowItem(m_startIndex);
+            }
+            else
+            {
+                UpdateView();
+            }
         }
 
         /// <summary>
@@ -184,7 +195,6 @@ namespace MogoEngine.UISystem
                     m_content.sizeDelta = new Vector2(m_content.sizeDelta.x, contentfit);
                 else
                     m_content.sizeDelta = new Vector2(contentfit, m_content.sizeDelta.y);
-
                 ContentSpace = contentfit;
             }
         }
@@ -200,52 +210,84 @@ namespace MogoEngine.UISystem
                 m_viewItemCount = m_viewItemCount +1+ CACHENUM;
             }
         }
-
         /// <summary>
-        /// 下一帧把指定项显示在最顶端并选中，这个比ResetScrollPosition保险，否则有些在UI一初始化完就执行的操作会不生效
+        /// 更新玩家数目
+        /// </summary>
+        /// <param name="dataCount"></param>
+        public void UpdateDataCount(int dataCount)
+        {
+            if(dataCount != _dataCount)
+            {
+                _dataCount = dataCount;
+                SetContentSize();
+                UpdateView();
+            }
+        }
+        /// <summary>
+        /// 更新某个item
         /// </summary>
         /// <param name="index"></param>
-        public void ShowItemOnTop(int index)
+        public void UpdateItem(int index)
         {
-
+            for (int i = 0; i < m_items.Count; i++)
+            {
+                if(m_items[i].index == index)
+                {
+                    UpdateItem(m_items[i]);
+                    break;
+                }
+            }
         }
 
-
-        /// <summary>
-        /// 重置滚动位置，
-        /// </summary>
-        /// <param name="top">true则跳转到顶部，false则跳转到底部</param>
-        public void ResetScrollPosition(bool top = true)
+        public void ShowViewTop()
         {
-            int index = top ? 0 : m_viewItemCount - 1;
-            // LoggerHelper.Error("len: "+index);
-            ResetScrollPosition(index);
-        }
-
-        /// <summary>
-        /// 重置滚动位置，如果同时还要赋值新的Data，请在赋值之前调用本方法
-        /// </summary>
-        public void ResetScrollPosition(int index)
-        {
-            var unitIndex = Mathf.Clamp(index, 0, _dataCount - 1);
-            var value = (unitIndex * itemSpace) / (Mathf.Max(ViewSpace, ContentSpace - ViewSpace));
-            value = Mathf.Clamp01(value);
-
-            //特殊处理无法使指定条目置顶的情况——拉到最后
-            if (unitIndex != index)
-                value = 1;
-
             if (m_scrollRect)
             {
                 if (m_isVertical)
-                    m_scrollRect.verticalNormalizedPosition = 1 - value;
+                    m_scrollRect.verticalNormalizedPosition = 1;
                 else
-                    m_scrollRect.horizontalNormalizedPosition = value;
+                    m_scrollRect.horizontalNormalizedPosition = 0;
             }
-
-            m_startIndex = unitIndex;
-            UpdateView();
         }
+
+        public void ShowViewBottom()
+        {
+            if (m_scrollRect)
+            {
+                if (m_isVertical)
+                    m_scrollRect.verticalNormalizedPosition = 0;
+                else
+                    m_scrollRect.horizontalNormalizedPosition = 1;
+            }
+        }
+
+        public void ShowItem(int index)
+        {
+            if(index <0 || index >_dataCount-1)
+            {
+                Debug.LogError("ERROR: the index out of range!!");
+                return;
+            }
+            if (_isEnable)
+            {
+                float value =( index * itemSpace )/ (ContentSpace-ViewSpace);
+
+                value = Mathf.Max(0, Mathf.Min(value, 1));
+                if (m_scrollRect)
+                {
+                    if (m_isVertical)
+                        m_scrollRect.verticalNormalizedPosition = 1-value;
+                    else
+                        m_scrollRect.horizontalNormalizedPosition = value;
+                }
+            }
+            else
+            {
+                Debug.LogError(" The Scroll view cant enable");
+            }
+        }
+
+        #region Cure
 
         private void OnScroll(Vector2 data)
         {
@@ -271,77 +313,36 @@ namespace MogoEngine.UISystem
         /// <summary>
         /// 更新视图
         /// </summary>
-        public void UpdateView()
+        void UpdateView()
         {
             if (!_isEnable)
                 return;
             ///限制其范围
             m_startIndex = Mathf.Max(0, Mathf.Min(m_startIndex, _dataCount - 1));
-            if (_moveDict == MoveDict.none || _moveDict == MoveDict.nomove)
-                UpdateAllItems();
-            else
-            {
-                UpdateItems();
-            }
-        }
-        /// <summary>
-        /// Updates all items.
-        /// </summary>
-        void UpdateAllItems()
-        {
-            for (int i = 0; i < m_viewItemCount; i++)
-            {
-                var index = m_startIndex + i;
-                if (i > m_items.Count - 1 || m_items[i] == null || m_items[i].item == null)
-                {
-                    ItemBase itembase;
-                    var go = InitItem(out itembase);
-                    if (go)
-                    {
-                        go.name = "item" + i;
-                        if (m_items.Count - 1 < i)
-                            m_items.Add(new IndexItem(itembase, index));
-                        else
-                        {
-                            m_items[i].item = itembase;
-                            m_items[i].index = index;
-                        }
-                    }
-                }
-                else
-                {
-                    m_items[i].index = index;
-                }
-                if (m_items[i] != null)
-                {
-                    UpdateItem(m_items[i]);
-                }
-                else
-                {
-                    m_items.RemoveAt(i);
-                }
-            }
+            ///更新下标
+            UpdateContentStartIndex();
+            UpdateItems();
         }
 
         HashSet<int> itemindexs = new HashSet<int>();
-        void Inititemindexs()
-        {
-            int startIndex = m_startIndex -(CACHENUM /2);
-            int endIndex = startIndex + m_viewItemCount - 1;
-            if (_moveDict == MoveDict.rightordown)
-            {
-                endIndex = Mathf.Min(endIndex, _dataCount - 1);
-                startIndex = endIndex - m_viewItemCount + 1;
-            }
-            else if (_moveDict == MoveDict.leftorup)
-            {
-                startIndex = Math.Max(startIndex, 0);
-                endIndex = startIndex + m_viewItemCount - 1;
-                Debug.LogErrorFormat("startindex = {0} , endindex = {1} , m_startIndex = {2} , " , startIndex , endIndex, m_startIndex);
-            }
 
+        void UpdateContentStartIndex()
+        {
+            _contentStartIndex = m_startIndex - (CACHENUM / 2);
+            int endIndex = _contentStartIndex + m_viewItemCount - 1;
+            ///检测 end范围
+            endIndex = Mathf.Min(endIndex, _dataCount - 1);
+            _contentStartIndex = endIndex - m_viewItemCount + 1;
+            ///检测 start 范围
+            _contentStartIndex = Math.Max(_contentStartIndex, 0);
+            endIndex = _contentStartIndex + m_viewItemCount - 1;
+        }
+
+        void InitiItemIndexList()
+        {
+            int endIndex = _contentStartIndex + m_viewItemCount - 1;
             itemindexs.Clear();
-            for (int i = startIndex; i <= endIndex; i++)
+            for (int i = _contentStartIndex; i <= endIndex; i++)
             {
                 itemindexs.Add(i);
             }
@@ -349,41 +350,69 @@ namespace MogoEngine.UISystem
         List<IndexItem> tmp = new List<IndexItem>();
         void UpdateItems()
         {
-            if (m_viewItemCount != m_items.Count)
+            InitiItemIndexList();
+            tmp.Clear();
+
+            for (int i = 0; i < m_viewItemCount; i++)
             {
-                UpdateAllItems();
-            }
-            else
-            {
-                Inititemindexs();
-                tmp.Clear();
-                for (int i = 0; i < m_viewItemCount; i++)
+                ///init item
+                if (i > m_items.Count-1 || m_items[i] == null || m_items[i].item == null)
                 {
-                    if (itemindexs.Contains(m_items[i].index))
+                    ItemBase itembase;
+                    var go = InitItem(out itembase);
+                    if (go)
                     {
-                        itemindexs.Remove(m_items[i].index);
+                        go.name = "item" + i;
+                        if (m_items.Count - 1 < i)
+                            m_items.Add(new IndexItem(itembase, -1));
+                        else
+                        {
+                            m_items[i].item = itembase;
+                            m_items[i].index = -1;
+                        }
                     }
                     else
                     {
-                        tmp.Add(m_items[i]);
+                        Debug.LogError(" init item Error!");
+                        continue;
                     }
                 }
-                int index = 0;
-                if (itemindexs.Count != tmp.Count)
+                ///滑动的时候才进行 不在content的item 更新， 不是因为滑动而更新的 需要全部更新
+                if (itemindexs.Contains(m_items[i].index) && (_moveDict == MoveDict.leftorup || _moveDict == MoveDict.rightordown))
                 {
-                    Debug.LogErrorFormat("itemindexs count = {0}  . tmp count = {1}", itemindexs.Count, tmp.Count);
-                    return;
+                    itemindexs.Remove(m_items[i].index);
                 }
-                foreach (var item in itemindexs)
+                else
                 {
-                    tmp[index].index = item;
-                    UpdateItem(tmp[index]);
-                    index++;
+                    tmp.Add(m_items[i]);
                 }
             }
 
+            int index = 0;
+            if (itemindexs.Count != tmp.Count)
+            {
+                Debug.LogErrorFormat("itemindexs count = {0}  . tmp count = {1}", itemindexs.Count, tmp.Count);
+                return;
+            }
+            foreach (var item in itemindexs)
+            {
+                tmp[index].index = item;
+                UpdateItem(tmp[index]);
+                index++;
+            }
         }
 
+        /// <summary>
+        ///  item 是否在Content 中显示
+        /// </summary>
+        /// <param name="index"></param>
+        /// <returns></returns>
+
+        bool ItemIsShow(int index)
+        {
+            return index >= _contentStartIndex && index <= _contentStartIndex + m_viewItemCount - 1;
+        }
+        #endregion
         #region UpdateItem
 
         void UpdateItem(IndexItem item)
