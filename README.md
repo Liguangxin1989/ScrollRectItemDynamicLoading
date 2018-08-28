@@ -10,10 +10,10 @@
 ![](res/12.gif)
 ___***ScrollRect 动态加载***___
 
-![](res/13.git)
+![](res/13.gif)
 ***ScrollRect 增删改***  
 
-![](res/14.git)
+![](res/14.gif)
 ***ScroolRect 移动到指定位置***
   
 ###基本思路
