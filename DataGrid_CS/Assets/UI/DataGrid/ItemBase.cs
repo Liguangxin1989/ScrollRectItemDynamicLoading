@@ -3,10 +3,9 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class ItemBase : MonoBehaviour
+public  abstract class ItemBase : MonoBehaviour
 {
-    public virtual void SetData(string v)
-    {
-        
-    }
+    public abstract void SetData(string v);
+
+    internal abstract float Width();
 }

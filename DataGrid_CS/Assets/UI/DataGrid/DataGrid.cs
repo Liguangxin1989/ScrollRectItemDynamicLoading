@@ -7,8 +7,12 @@
 /// 
 ///version 4 增加瞬移 （移动到底部，顶部，指定位置)
 ///
+///version 5 增加多个Tab页面共用一个DataGrid 时候，来回切换时候出现的bug
+/// 
 ///
+
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -59,6 +63,7 @@ namespace MogoEngine.UISystem
 
         private RectTransform m_content;
         private readonly List<IndexItem> m_items = new List<IndexItem>();
+        [SerializeField]
         private ScrollRect m_scrollRect;
         private RectTransform m_tranScrollRect;
 
@@ -113,11 +118,18 @@ namespace MogoEngine.UISystem
         private MoveDict _moveDict = MoveDict.none;
 
         public delegate void InitItemCallback(ItemBase t, int index);
+        /// <summary>
+        /// 回调函数
+        /// </summary>
         InitItemCallback _callback;
 
-        bool isStart = false;
-#endregion
-        void Start()
+        bool isInit = false;
+        /// <summary>
+        /// 是否为第一次初始化scrollRect，初始化的时候，必须重新刷新
+        /// </summary>
+        bool isFirst = true;
+        #endregion
+        void Init()
         {
             var go = gameObject;
             m_scrollRect = this.GetComponent<ScrollRect>();
@@ -126,8 +138,7 @@ namespace MogoEngine.UISystem
             m_isVertical = m_scrollRect.vertical;
             ViewSpace = m_isVertical ? m_tranScrollRect.rect.height : m_tranScrollRect.rect.width;
             m_scrollRect.onValueChanged.AddListener(OnScroll);
-            isStart = true;
-            InitData();
+            isInit = true;
         }
         /// <summary>
         /// 设置Item 相关的数据
@@ -142,6 +153,8 @@ namespace MogoEngine.UISystem
             _item = item;
             _callback = callback;
             m_startIndex = initIndex;
+            if (!isInit)
+                Init();
             InitData();
         }
 
@@ -152,20 +165,28 @@ namespace MogoEngine.UISystem
 
         void InitData()
         {
-            if (!isStart)
+            if (!isInit)
                 return;
+            isFirst = true;
             SetItemSize();
             SetContentSize();
             SetCacheCount();
             SetEnable();
-            if (m_startIndex != 0)
-            {
-                ShowItem(m_startIndex);
-            }
-            else
-            {
-                UpdateView();
-            }
+            StartCoroutine(IgnoreInertia());
+            ShowItem(m_startIndex);
+        }
+        /// <summary>
+        /// 在切换scroll中数据的时候，如果此时scrollRect还在滑动，或者ScrollRect的content变化很大，会在切换的时候出现滑动，用此协程取消在初始化时候的滑动
+        /// </summary>
+        /// <returns></returns>
+        IEnumerator IgnoreInertia()
+        {
+            m_scrollRect.inertia = false;
+            m_scrollRect.movementType = ScrollRect.MovementType.Clamped;
+            yield return null;
+            yield return null;
+            m_scrollRect.inertia = true;
+            m_scrollRect.movementType = ScrollRect.MovementType.Elastic;
         }
 
         /// <summary>
@@ -175,16 +196,14 @@ namespace MogoEngine.UISystem
         {
             if (_item)
             {
-                var rectTrans = (_item.transform as RectTransform);
-                _itemSize = rectTrans.rect.size;
-                itemSpace = m_isVertical ? _itemSize.y : _itemSize.x;
+                itemSpace = _item.GetComponent<ItemBase>().Width();
             }
             ///TODO 如果有Gridlayout 应该把 Space 加进去
 
         }
         /// <summary>
-        /// 计算Content的大小 
-        /// content 的 不动边是由本身决定还是由 viewport 决定 ？  暂时由本身决定
+        /// 计算Content的大小  Content的变化会触发ValueChange的回调
+        /// content 的 不动边是由本身决定还是由 viewport 决定 ？  暂时由本身决定 
         /// </summary>
         void SetContentSize()
         {
@@ -263,7 +282,7 @@ namespace MogoEngine.UISystem
 
         public void ShowItem(int index)
         {
-            if(index <0 || index >_dataCount-1)
+            if (index < 0 || (_dataCount >0 && index > _dataCount - 1))
             {
                 Debug.LogError("ERROR: the index out of range!!");
                 return;
@@ -276,9 +295,15 @@ namespace MogoEngine.UISystem
                 if (m_scrollRect)
                 {
                     if (m_isVertical)
-                        m_scrollRect.verticalNormalizedPosition = 1-value;
+                    {
+                        m_scrollRect.verticalNormalizedPosition = value; ///修改scrollRect 的进度条，防止在切换Tab的时候，因为value一样而不调用scroll的bug
+                        m_scrollRect.verticalNormalizedPosition = 1 - value;
+                    }
                     else
+                    {
+                        m_scrollRect.horizontalNormalizedPosition =1- value;
                         m_scrollRect.horizontalNormalizedPosition = value;
+                    }
                 }
             }
             else
@@ -288,7 +313,10 @@ namespace MogoEngine.UISystem
         }
 
         #region Cure
-
+        /// <summary>
+        /// scrollRect滑动变化的回调
+        /// </summary>
+        /// <param name="data"></param>
         private void OnScroll(Vector2 data)
         {
             if (!_isEnable)
@@ -297,18 +325,23 @@ namespace MogoEngine.UISystem
             tmp = Mathf.Clamp01(tmp);
             var value = (ContentSpace - ViewSpace) * tmp;
             var start = ContentSpace - value - ViewSpace;
+            ///计算移动后的startIndex
             var startIndex = Mathf.FloorToInt(start / itemSpace);
             startIndex = Mathf.Max(0, startIndex);
 
-            if (startIndex != m_startIndex)
+            if (startIndex != m_startIndex || isFirst)
             {
                 ///根据m_startIndex 与 startIndex 大小，判断玩家滑动的方向
-                _moveDict = m_startIndex - startIndex < 0 ? MoveDict.rightordown : MoveDict.leftorup;
+                if (isFirst)
+                    _moveDict = MoveDict.nomove;
+                else
+                    _moveDict = m_startIndex - startIndex < 0 ? MoveDict.rightordown : MoveDict.leftorup;
                 m_startIndex = startIndex;
                 UpdateView();
 
                 _moveDict = MoveDict.none;
             }
+            isFirst = false;
         }
         /// <summary>
         /// 更新视图
@@ -352,9 +385,15 @@ namespace MogoEngine.UISystem
         {
             InitiItemIndexList();
             tmp.Clear();
-
-            for (int i = 0; i < m_viewItemCount; i++)
+            var maxCount = Mathf.Max(m_viewItemCount, m_items.Count);
+            for (int i = 0; i < maxCount; i++)
             {
+                if(i >= m_viewItemCount)
+                {
+                    m_items[i].item.gameObject.SetActive(false);
+                    continue;
+                }
+
                 ///init item
                 if (i > m_items.Count-1 || m_items[i] == null || m_items[i].item == null)
                 {
@@ -376,6 +415,10 @@ namespace MogoEngine.UISystem
                         Debug.LogError(" init item Error!");
                         continue;
                     }
+                }
+                else
+                {
+                    m_items[i].item.gameObject.SetActive(true);
                 }
                 ///滑动的时候才进行 不在content的item 更新， 不是因为滑动而更新的 需要全部更新
                 if (itemindexs.Contains(m_items[i].index) && (_moveDict == MoveDict.leftorup || _moveDict == MoveDict.rightordown))

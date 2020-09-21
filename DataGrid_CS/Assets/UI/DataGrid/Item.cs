@@ -13,5 +13,12 @@ public class Item : ItemBase
         if (!string.IsNullOrEmpty(data))
             text.text = data;
     }
-
+    /// <summary>
+    /// 设置此item滑动方向上的Width
+    /// </summary>
+    /// <returns></returns>
+    internal override float Width()
+    {
+        return 80;
+    }
 }
